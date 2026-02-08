@@ -4,6 +4,8 @@ project(SFML_Raytracer)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
+# find_package(SFML) seems to break it. chatgpt says it may be linux?
 # Find ImGui-SFML
 find_package(ImGui-SFML REQUIRED)
 

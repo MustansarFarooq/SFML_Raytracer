@@ -41,10 +41,6 @@ sf::RenderWindow window( sf::VideoMode( { 800, 600 } ), "thank god this works!" 
         }
         ImGui::End();
 
-        // Optional demo window
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-
         // Draw
         window.clear(sf::Color{50, 50, 50});
         ImGui::SFML::Render(window);
