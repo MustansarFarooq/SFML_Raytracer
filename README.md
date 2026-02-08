@@ -1,1 +1,1 @@
-##A simple raytracer that uses SFML
+# A simple raytracer that uses SFML
