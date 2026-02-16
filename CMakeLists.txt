@@ -10,7 +10,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ImGui-SFML REQUIRED)
 
 # Add executable
-add_executable(SFML_Raytracer main.cpp)
+add_executable(SFML_Raytracer src/main.cpp
+        src/ray.cpp
+        src/ray.h
+)
 
 # Link SFML and ImGui-SFML using imported targets
 target_link_libraries(SFML_Raytracer PRIVATE
