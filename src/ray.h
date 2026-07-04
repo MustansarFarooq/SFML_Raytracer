@@ -1,8 +1,10 @@
 #ifndef SFML_RAYTRACER_RAY_H
 #define SFML_RAYTRACER_RAY_H
-#include <SFML/Graphics/Color.hpp>
+
+
 #include <SFML/System/Vector3.hpp>
-#pragma once
+
+class hittable;
 
 
 class ray {
@@ -11,7 +13,6 @@ public:
 
     ray(sf::Vector3f origin, sf::Vector3f direction) : origin(origin), direction(direction){};
 
-    sf::Color rayColor();
 
     const sf::Vector3f &getOrigin() const { return origin; };
     const sf::Vector3f &getDirection() const { return direction; };

@@ -5,82 +5,136 @@
  */
 
 
-
-
-#include <cmath>
+#include "camera.h"
+#include "hittable_list.h"
+#include "sphere.h"
+#include "material.h"
 #include <SFML/Graphics.hpp>
 #include <imgui.h>
 #include <imgui-SFML.h>
 #include <optional>
 #include <cstdint>
-
-#include "ray.h"
-
-
-void setPixel(std::vector<std::uint8_t>& imageBuffer, sf::Color color, int i) {
-    imageBuffer[i] = color.r;
-    imageBuffer[i + 1] = color.g;
-    imageBuffer[i + 2] = color.b;
-    imageBuffer[i + 3] = color.a;
-}
-
-
-
-
+#include <thread>
+#include "bvh.h"
 
 
 const int screenWidth = 800;
 const int screenHeight = 600;
-const float toDegrees = std::numbers::pi/180.0f;
 
-//set up the camera and the view plane
-sf::Vector3f cameraPosition = {0,0,0};
-const float viewingPlaneDistance = 1.0f; //the distance between the camera and the center of the viewing plane
-const float fovDegrees = 90.f;
-float aspectRatio = static_cast<float>(screenWidth)/screenHeight;
+sf::Texture screenTexture;
+sf::Sprite imageSprite(screenTexture);
 
 
-float viewPlaneWidth = 2 * viewingPlaneDistance * std::tan(fovDegrees*toDegrees/2);
-float viewPlaneHeight = viewPlaneWidth/aspectRatio;
+camera cam(screenWidth, screenHeight);
+void coverScreen(hittable_list& world) {
+    cam.samplesPerPixel = 1;
+    cam.maxDepth = 90;
+    cam.fovDegrees = 45.f;
+    cam.lookFrom = {13, 2, 3};
+    cam.lookAt = {0, 0, 0};
+
+    for (int a = -11; a < 11; a++) {
+        for (int b = -11; b < 11; b++) {
+            double choose_mat = random_double();
+            sf::Vector3f center(a + 0.9*random_double(), 0.2, b + 0.9*random_double());
+
+            if ((center - sf::Vector3f(4, 0.2, 0)).length() > 0.9) {
+                std::shared_ptr<material> sphere_material;
+
+                if (choose_mat < 0.8) {
+                    // diffuse
+                    auto albedo = randomVector3f() * randomVector3f();
+                    sphere_material = std::make_shared<lambertian>(albedo);
+                    world.add(make_shared<sphere>(center, 0.2, sphere_material));
+                } else if (choose_mat < 0.95) {
+                    // metal
+                    auto albedo = randomVector3f(0.5,1);
+                    auto fuzz = random_double(0, 0.5);
+                    sphere_material = std::make_shared<metal>(albedo, fuzz);
+                    world.add(std::make_shared<sphere>(center, 0.2, sphere_material));
+                } else {
+                    // glass
+                    sphere_material = std::make_shared<dielectric>(1.5);
+                    world.add(make_shared<sphere>(center, 0.2, sphere_material));
+                }
+            }
+        }
+    }
 
 
-//distance from left to right, up to down, of each view plane as vec3f
-sf::Vector3f planeRight = {viewPlaneWidth,0,0};
-sf::Vector3f planeUp = {0,viewPlaneHeight,0};
+    auto material1 = std::make_shared<dielectric>(1.5);
+    world.add(std::make_shared<sphere>(sf::Vector3f(0, 1, 0), 1.0, material1));
 
-//get the position of the top left corner in coordinate space ig
-sf::Vector3f topLeftCorner = cameraPosition + sf::Vector3f{
-    -viewPlaneWidth/2,
-    viewPlaneHeight/2,
-    -viewingPlaneDistance};
+    auto material2 = std::make_shared<lambertian>(sf::Vector3f(0.4, 0.2, 0.1));
+    world.add(std::make_shared<sphere>(sf::Vector3f(-4, 1, 0), 1.0, material2));
 
-//pixel steps
-sf::Vector3f pixelStepX = planeRight/static_cast<float>(screenWidth);
-sf::Vector3f pixelStepY = planeUp/static_cast<float>(screenHeight);
+    auto material3 = std::make_shared<metal>(sf::Vector3f(0.7, 0.6, 0.5), 0.0);
+    world.add(std::make_shared<sphere>(sf::Vector3f(4, 1, 0), 1.0, material3));
+}
+void spheres(hittable_list& world) {
+    cam.samplesPerPixel = 1;
+    cam.maxDepth = 90;
+    cam.fovDegrees = 90.f;
 
+    cam.lookFrom = {0, 1, 1};
+    cam.lookAt = {0, 1, -1};
 
-std::vector<std::uint8_t> image(screenWidth*screenHeight*4);
-sf::Texture imageTexture;
-sf::Sprite imageSprite(imageTexture);
+    auto material1 = std::make_shared<dielectric>(1.5);
+    world.add(std::make_shared<sphere>(sf::Vector3f(0, 1, -1), 0.4, material1));
 
+    auto material2 = std::make_shared<lambertian>(sf::Vector3f(0.85, 0.06, 0.8));
+    world.add(std::make_shared<sphere>(sf::Vector3f(-1, 1, -1), 0.4, material2));
+
+    auto material3 = std::make_shared<metal>(sf::Vector3f(0.05, 0.55, 0.2), 0.0);
+    world.add(std::make_shared<sphere>(sf::Vector3f(1, 1, -1), 0.4, material3));
+}
+void earth(hittable_list& world) {
+    cam.samplesPerPixel = 1;
+    cam.maxDepth = 90;
+    cam.fovDegrees = 45.f;
+
+    cam.lookFrom = {2, 2, 1};
+    cam.lookAt = {0, 1, -1};
+
+    auto earthTexture = std::make_shared<imageTexture>("earthTexture.jpg");
+    auto material1 = std::make_shared<lambertian>(earthTexture);
+    world.add(std::make_shared<sphere>(sf::Vector3f(0, 1, -1), 0.4, material1));
+
+}
 int main() {
 
 
-
+    //sfml whatever jargon idk boiler plate spaghetti
     sf::RenderWindow window( sf::VideoMode( { screenWidth, screenHeight } ), "SFML RayTracer" );
     window.setFramerateLimit(60);
-
-    imageTexture.resize({screenWidth, screenHeight});
-    imageSprite.setTexture(imageTexture,true);
-
+    screenTexture.resize({screenWidth, screenHeight});
+    imageSprite.setTexture(screenTexture,true);
     // Initialize ImGui-SFML
     if (!ImGui::SFML::Init(window)) {
-        return 1; // failed to initialize
+        return 1; // failed to initialize and terminate
     }
-
     sf::Clock deltaClock;
-    float slider_value = 0.5f;
 
+
+    //world stuff
+    hittable_list world;
+    auto groundMaterial = std::make_shared<checkerTexture>(1.f,sf::Vector3f(0.65, 0.65, 0.65),sf::Vector3f(0.2,0.2,0.2));
+    world.add(std::make_shared<sphere>(sf::Vector3f(0,-1000,-1),1000,std::make_shared<lambertian>(groundMaterial)));
+
+
+    earth(world);
+
+
+
+
+    world = hittable_list(std::make_shared<bvhNode>(world));
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(0.5);
+
+    double seconds = 0;
+    std::atomic<bool> rendering = false;
+    std::thread renderThread;
     while (window.isOpen()) {
 
         std::optional<sf::Event> event;
@@ -93,39 +147,60 @@ int main() {
             }
         }
 
+
         // Update ImGui-SFML
         ImGui::SFML::Update(window, deltaClock.restart());
 
         // Build ImGui UI
-        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(100, 50), ImGuiCond_Always);
-        ImGui::Begin("Stats", nullptr,
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoResize);
-        ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
-        ImGui::End();
-        for (int y = 0; y < screenHeight; ++y)
+
+        ImGui::Begin("Stats", nullptr);
+        ImGui::Text("FPS: %.2f", 1.f/cam.lastFrameTime);
+        ImGui::InputInt("Samples Per Pixel", &cam.samplesPerPixel);
+        //ImGui::ColorEdit3("Ground Color", &groundMaterial->albedo.x);
+
+        std::atomic<int> completedPixels = 0;
+
+        if (ImGui::Button(rendering ? "Stop Rendering"
+                            : "Begin Rendering"))
         {
-            for (int x = 0; x < screenWidth; ++x)
+            if (!rendering)
             {
-                int index = (y * screenWidth + x) * 4;
+                rendering = true;
 
-                sf::Vector3f pixelPosition = topLeftCorner
-                                            + pixelStepX*(x+0.5f)  //add the 0.5f because we want to get the center of the pixel, not the top left corner of it
-                                            - pixelStepY*(y+0.5f); //subtract because y increases as we go down in sfml
+                renderThread = std::thread([&]
+                {
+                    while (rendering.load(std::memory_order_relaxed))
+                    {
+                        cam.render(world);
+                    }
+                });
+            }
+            else
+            {
+                rendering = false;
 
-                sf::Vector3f rayDirection = pixelPosition - cameraPosition; //Ray tracing
-                ray r = ray(cameraPosition,rayDirection);
+                if (renderThread.joinable())
+                    renderThread.join();
 
-                sf::Color color(r.rayColor());
-
-                setPixel(image, color, index);
+                std::fill(cam.accumulated.begin(), cam.accumulated.end(), sf::Vector3f(0.f,0.f,0.f));
+                cam.accumulatedFrame = 1;
             }
         }
+        float progress =
+            float(cam.completedPixels.load(std::memory_order_relaxed))
+            / cam.totalPixels;
+        ImGui::ProgressBar(progress);
+        ImGui::Text("Accumulated Frames: %.0f",
+            cam.accumulatedFrame);
+        ImGui::Text("Time to Render Last Frame %.2f", cam.lastFrameTime);
 
-        imageTexture.update(image.data());
+        ImGui::End();
+        {
+            std::lock_guard<std::mutex> lock(cam.imageMutex);
+            screenTexture.update(cam.frontBuffer.data());
+        }
         // Draw
-        window.clear(sf::Color{50, 50, 50});
+        window.clear(sf::Color{0, 0, 0});
         window.draw(imageSprite);
         ImGui::SFML::Render(window);
 
