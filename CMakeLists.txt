@@ -24,6 +24,7 @@ add_executable(SFML_Raytracer src/main.cpp
         src/texture.h
         include/stb_image.h
         src/image.h
+        src/quad.h
 )
 target_include_directories(SFML_Raytracer PRIVATE include)
 # Link SFML and ImGui-SFML using imported targets

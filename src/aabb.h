@@ -10,7 +10,9 @@ public:
     interval x, y, z;
     static const aabb empty, universe;
 
-    aabb(const interval& x, const interval& y, const interval& z) : x(x), y(y), z(z) {}
+    aabb(const interval& x, const interval& y, const interval& z) : x(x), y(y), z(z) {
+        padToMinimums();
+    }
     aabb() {};
     const interval& axis_interval(int n) const {
         if (n == 1) return y;
@@ -18,11 +20,15 @@ public:
         return x;
     }
 
+
+
     aabb(const sf::Vector3f& a, const sf::Vector3f& b)
     {
         x = (a.x <= b.x) ? interval(a.x, b.x) : interval(b.x, a.x);
         y = (a.y <= b.y) ? interval(a.y, b.y) : interval(b.y, a.y);
         z = (a.z <= b.z) ? interval(a.z, b.z) : interval(b.z, a.z);
+
+        padToMinimums();
     }
     aabb(const aabb& box0, const aabb& box1) {
         x = interval(box0.x, box1.x);
@@ -45,7 +51,7 @@ public:
 
         for (int i = 0; i < 3; i++) {
             const interval& ax =  axis_interval(i);
-            const double dirInv = 1.f/dir[i];
+            const float dirInv = 1.f/dir[i];
 
             float t0 = (ax.min - orig[i]) * dirInv;
             float t1 = (ax.max - orig[i]) * dirInv;
@@ -62,6 +68,15 @@ public:
             if (ray_t.max <= ray_t.min) return false;
         }
         return true;
+    }
+
+private:
+    void padToMinimums() {
+        float delta = 0.001;
+        if (x.size() < delta) x = x.expand(delta);
+        if (y.size() < delta) y = y.expand(delta);
+        if (z.size() < delta) z = z.expand(delta);
+
     }
 };
 const aabb aabb::empty    = aabb(interval::empty,    interval::empty,    interval::empty);

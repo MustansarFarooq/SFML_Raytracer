@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <thread>
 #include "bvh.h"
+#include "quad.h"
 
 
 const int screenWidth = 800;
@@ -101,6 +102,20 @@ void earth(hittable_list& world) {
     world.add(std::make_shared<sphere>(sf::Vector3f(0, 1, -1), 0.4, material1));
 
 }
+void quadsAndSphere(hittable_list& world) {
+    cam.samplesPerPixel = 1;
+    cam.maxDepth = 90;
+    cam.fovDegrees = 90.f;
+
+    cam.lookFrom = {0, 1, 1};
+    cam.lookAt = {0, 1, -1};
+
+    auto material1 = std::make_shared<lambertian>(sf::Vector3f(0.85, 0.06, 0.25));
+    world.add(std::make_shared<sphere>(sf::Vector3f(0, 1, -1), 0.4, material1));
+
+    auto material2 = std::make_shared<metal>(sf::Vector3f(0.2,0.2,0.2),0);
+    world.add(std::make_shared<quad>(sf::Vector3f(0.5,1,-1), sf::Vector3f(0,0,3),sf::Vector3f(0,1,0),material2));
+}
 int main() {
 
 
@@ -122,7 +137,7 @@ int main() {
     world.add(std::make_shared<sphere>(sf::Vector3f(0,-1000,-1),1000,std::make_shared<lambertian>(groundMaterial)));
 
 
-    earth(world);
+    quadsAndSphere(world);
 
 
 
