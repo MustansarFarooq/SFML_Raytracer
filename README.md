@@ -6,8 +6,7 @@
 - [X] Positionable Camera
 - [X] BVH
 - [X] Textures
-- [ ] Quads
-- [ ] Lighting
+- [X] Quads
 - [ ] Emissive Materials
 - [ ] Multithreading
 - [ ] Real-time camera movement
@@ -21,6 +20,9 @@
 
 ### Image Texture
 <img width="810" height="610" alt="Earth" src="https://github.com/user-attachments/assets/c2c9c4e6-641c-4472-9038-f9cc2c92f600" />
+
+### Quads
+<img width="810" height="610" alt="image" src="https://github.com/user-attachments/assets/259eefdc-5ed4-4b9e-8251-2e93e8327fb4" />
 
 
 #### Build
