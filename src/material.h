@@ -11,6 +11,11 @@
 class material {
     public:
     virtual ~material() = default;
+
+    virtual sf::Vector3f emmited(float u, float v, const sf::Vector3f& p) {
+        return {0,0,0};
+    }
+
      // a material should just tell ius whether to scatter the ray or have it absorbed
     virtual bool scatter(
         const ray& r_in, const hit_record& rec, sf::Vector3f& attenuation, ray& scattered
@@ -88,6 +93,20 @@ private:
         r0 = r0*r0;
         return r0 + (1-r0)*std::pow((1-cosine),5);
     }
+};
+
+class diffuseLight : public material {
+public:
+    diffuseLight(sf::Vector3f emitColor) : tex(std::make_shared<solidColor>(emitColor)) {};
+    diffuseLight(std::shared_ptr<texture> tex) : tex(tex) {};
+
+    sf::Vector3f emmited(float u, float v, const sf::Vector3f &p) override {
+        return tex->value(u,v,p);
+    }
+
+
+private:
+    std::shared_ptr<texture> tex;
 };
 
 

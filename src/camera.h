@@ -11,6 +11,10 @@
 #include <mutex>
 class camera {
 public:
+
+    sf::Vector3f background = {0,0,0};
+
+
     std::vector<std::uint8_t> frontBuffer;
     std::vector<std::uint8_t> backBuffer;
     std::mutex imageMutex;
@@ -162,23 +166,18 @@ private:
         hit_record rec;
 
         if (depth <= 0) return {0,0,0};
-        if (world.hit(r, interval(0.001, infinity), rec)) {
-            ray scattered;
-            sf::Vector3f attenuation;
-            if(rec.mat->scatter(r,rec,attenuation, scattered)) {
-                return attenuation*rayColor(scattered,depth-1,world);
-            }
-            return sf::Vector3f(0,0,0);
 
+        if (!world.hit(r, interval(0.001, infinity), rec))
+            return background;
+
+        ray scattered;
+        sf::Vector3f attenuation;
+        sf::Vector3f emmitted = rec.mat->emmited(rec.u,rec.v,rec.p);
+        if(!rec.mat->scatter(r,rec,attenuation, scattered)) {
+            return emmitted;
         }
-        sf::Vector3f normalizedDir = r.getDirection().normalized();
-        float a = 0.5f * (normalizedDir.y + 1.0f);
+        return emmitted + (attenuation * rayColor(scattered, depth-1, world));
 
-        sf::Vector3f white(1.f, 1.f, 1.f);
-        sf::Vector3f blue(0.5f, 0.7f, 1.f);
-
-        sf::Vector3f result = (1.0f - a) * white + a * blue; //a nice sky-blue color
-        return result;
     }
 };
 

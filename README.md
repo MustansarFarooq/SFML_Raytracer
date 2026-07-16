@@ -7,7 +7,7 @@
 - [X] BVH
 - [X] Textures
 - [X] Quads
-- [ ] Emissive Materials
+- [X] Emissive Materials
 - [ ] Multithreading
 - [ ] Real-time camera movement
 

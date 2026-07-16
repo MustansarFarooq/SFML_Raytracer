@@ -9,6 +9,8 @@
 class texture {
 public:
     virtual ~texture() = default;
+
+    /// @brief Given a location on the object, (u,v), or the hit point in the world space, p, what should the texture return
     virtual sf::Vector3f value(double u, double v, const sf::Vector3f& p) const = 0;
 };
 
