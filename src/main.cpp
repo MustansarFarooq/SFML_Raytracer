@@ -79,7 +79,7 @@ void spheres(hittable_list& world) {
 
     cam.lookFrom = {0, 1, 1};
     cam.lookAt = {0, 1, -1};
-
+    cam.background = {0.5,0.8,0.92};
     auto material1 = std::make_shared<dielectric>(1.5);
     world.add(std::make_shared<sphere>(sf::Vector3f(0, 1, -1), 0.4, material1));
 
@@ -102,7 +102,6 @@ void earth(hittable_list& world) {
     world.add(std::make_shared<sphere>(sf::Vector3f(0, 1, -1), 0.4, material1));
 
 }
-
 void light(hittable_list& world) {
     cam.samplesPerPixel = 1;
     cam.maxDepth = 90;
@@ -120,12 +119,11 @@ void light(hittable_list& world) {
     auto material3 = std::make_shared<metal>(sf::Vector3f(0.8,0.8,0.8),0);
     world.add(std::make_shared<quad>(sf::Vector3f(-0.5,1,-1), sf::Vector3f(0,0,0.5),sf::Vector3f(0,0.5,0),material3));
 }
-
 void quadsAndSphere(hittable_list& world) {
     cam.samplesPerPixel = 1;
     cam.maxDepth = 90;
     cam.fovDegrees = 90.f;
-
+    cam.background = {0.5,0.8,0.92};
     cam.lookFrom = {0, 1, 1};
     cam.lookAt = {0, 1, -1};
 
@@ -134,6 +132,18 @@ void quadsAndSphere(hittable_list& world) {
 
     auto material2 = std::make_shared<metal>(sf::Vector3f(0.2,0.2,0.2),0);
     world.add(std::make_shared<quad>(sf::Vector3f(0.5,1,-1), sf::Vector3f(0,0,3),sf::Vector3f(0,1,0),material2));
+}
+
+void sphere(hittable_list& world) {
+    cam.samplesPerPixel = 1;
+    cam.maxDepth = 90;
+    cam.fovDegrees = 90.f;
+    cam.background = {0.5,0.8,0.92};
+    cam.lookFrom = {0, 1, 1};
+    cam.lookAt = {0, 1, -1};
+
+    auto material1 = std::make_shared<lambertian>(sf::Vector3f(1.0,0.0,0.0));
+    world.add(std::make_shared<class sphere>(sf::Vector3f(0, 1, -1), 0.4, material1));
 }
 
 int main() {
@@ -154,10 +164,10 @@ int main() {
     //world stuff
     hittable_list world;
     auto groundMaterial = std::make_shared<checkerTexture>(1.f,sf::Vector3f(0.65, 0.65, 0.65),sf::Vector3f(0.2,0.2,0.2));
-    world.add(std::make_shared<sphere>(sf::Vector3f(0,-1000,-1),1000,std::make_shared<lambertian>(groundMaterial)));
+    world.add(std::make_shared<class sphere>(sf::Vector3f(0,-1000,-1),1000,std::make_shared<lambertian>(groundMaterial)));
 
 
-    light(world);
+    spheres(world);
 
 
 
@@ -181,6 +191,14 @@ int main() {
                 window.close();
             }
         }
+
+        //
+        // if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
+        //     cam.lookFrom.z-=1;
+        // }
+        // if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
+        //     cam.lookFrom.z+=1;
+        // }
 
 
         // Update ImGui-SFML

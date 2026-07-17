@@ -17,7 +17,7 @@ inline double degrees_to_radians(double degrees) {
 }
 
 inline double random_double() {
-    thread_local  pcg32 generator{std::random_device{}()};
+    thread_local pcg32 generator{std::random_device{}()};
     return std::ldexp(static_cast<double>(generator()), -32);
 }
 

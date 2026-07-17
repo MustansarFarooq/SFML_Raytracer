@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # find_package(SFML) seems to break it. chatgpt says it may be linux?
 # Find ImGui-SFML
 find_package(ImGui-SFML REQUIRED)
-find_package(OpenMP REQUIRED)
 # Add executable
 add_executable(SFML_Raytracer src/main.cpp
         src/ray.h
@@ -34,5 +33,4 @@ target_link_libraries(SFML_Raytracer PRIVATE
         sfml-graphics
         sfml-audio
         ImGui-SFML::ImGui-SFML
-        OpenMP::OpenMP_CXX
 )

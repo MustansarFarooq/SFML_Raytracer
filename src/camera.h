@@ -9,6 +9,16 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <execution>
+#include <algorithm>
+#include <condition_variable>
+
+
+
+
+struct tile {
+    int x0, y0, x1, y1;
+};
 class camera {
 public:
 
@@ -39,43 +49,49 @@ public:
         accumulated.resize(totalPixels);
         frontBuffer.resize(totalPixels*4);
         backBuffer.resize(totalPixels*4);
+
+
+        for (int y = 0; y < screenHeight; y += TILE_SIZE) {
+            for (int x = 0; x < screenWidth; x += TILE_SIZE) {
+                tiles.push_back({
+                    x,
+                    y,
+                    std::min(x + TILE_SIZE, screenWidth),
+                    std::min(y + TILE_SIZE, screenHeight)
+                });
+            }
+        }
+
+
     }
 
     void render(const hittable &world) {
+        nextTile = 0;
+
+        auto worker = [&]() {
+
+                while (true) {
+                    int tileIndex = nextTile.fetch_add(1);
+
+                    if (tileIndex>=tiles.size())
+                        break;
+
+                    const tile& tile = tiles[tileIndex];
+
+                    renderTile(tile,world);
+                }
+        };
 
         auto start = std::chrono::steady_clock::now();
         initialize();
         pixelSamplesScale = 1.f/samplesPerPixel;
         completedPixels = 0;
 
-        for (int y = 0; y < screenHeight; ++y) {
-            for (int x = 0; x < screenWidth; ++x) {
-                int index = (y * screenWidth + x);
-
-                sf::Vector3f pixelColor{0, 0, 0};
-
-                for (int sample = 0; sample < samplesPerPixel; ++sample) {
-                    ray r = getRay(x, y);
-                    sf::Vector3f c = rayColor(r, maxDepth, world);
-                    pixelColor += sf::Vector3f(c.x, c.y, c.z);
-                }
-                accumulated[index] += pixelColor;
-                pixelColor = accumulated[index]/accumulatedFrame;
-                pixelColor *= static_cast<float>(pixelSamplesScale);
-                pixelColor.x = std::sqrt(pixelColor.x);
-                pixelColor.y = std::sqrt(pixelColor.y);
-                pixelColor.z = std::sqrt(pixelColor.z);
-                sf::Color finalColor(
-                    static_cast<uint8_t>(255.999f*pixelColor.x),
-                    static_cast<uint8_t>(255.999f*pixelColor.y),
-                    static_cast<uint8_t>(255.999f*pixelColor.z),
-                    255
-                );
-
-                setPixel(backBuffer, finalColor, index*4);
-                ++completedPixels;
-
-
+        unsigned threadCount = std::thread::hardware_concurrency();
+        {
+            std::vector<std::jthread> workers;
+            for (int i = 0; i < threadCount; ++i) {
+                workers.emplace_back(worker);
             }
         }
         accumulatedFrame++;
@@ -90,6 +106,10 @@ public:
     }
 
 private:
+    std::vector<tile> tiles;
+
+    const int TILE_SIZE = 16;
+
     float pixelSamplesScale;
 
     const int screenHeight;
@@ -155,6 +175,8 @@ private:
         //get the position of the top left corner in coordinate space ig
         topLeftCorner = cameraPosition - (viewingPlaneDistance*w) - viewPlane_u/2.f - viewPlane_v/2.f;
 
+
+
         // topLeftCorner = cameraPosition + sf::Vector3f{
         //                     -viewPlaneWidth / 2,
         //                     viewPlaneHeight / 2,
@@ -179,6 +201,42 @@ private:
         return emmitted + (attenuation * rayColor(scattered, depth-1, world));
 
     }
+    std::atomic<int> nextTile = 0;
+
+
+    void renderTile(const tile& tile, const hittable& world) {
+        for (int y = tile.y0; y< tile.y1; y++) {
+            for (int x = tile.x0; x < tile.x1; x++) {
+
+                int index = y*screenWidth+x;
+                sf::Vector3f pixelColor{0, 0, 0};
+
+                for (int sample = 0; sample < samplesPerPixel; ++sample) {
+                    ray r = getRay(x, y);
+                    sf::Vector3f c = rayColor(r, maxDepth, world);
+                    pixelColor += sf::Vector3f(c.x, c.y, c.z);
+                }
+                accumulated[index] += pixelColor;
+                pixelColor = accumulated[index] / accumulatedFrame;
+                pixelColor *= static_cast<float>(pixelSamplesScale);
+                pixelColor.x = std::sqrt(pixelColor.x);
+                pixelColor.y = std::sqrt(pixelColor.y);
+                pixelColor.z = std::sqrt(pixelColor.z);
+                sf::Color finalColor(
+                    static_cast<uint8_t>(255.999f * pixelColor.x),
+                    static_cast<uint8_t>(255.999f * pixelColor.y),
+                    static_cast<uint8_t>(255.999f * pixelColor.z),
+                    255
+                );
+
+                setPixel(backBuffer, finalColor, index * 4);
+
+            }
+        }
+        completedPixels += (TILE_SIZE*TILE_SIZE);
+    }
+
+
 };
 
 #endif //SFML_RAYTRACER_CAMERA_H
