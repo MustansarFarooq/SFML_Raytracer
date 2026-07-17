@@ -8,9 +8,10 @@
 - [X] Textures
 - [X] Quads
 - [X] Emissive Materials
-- [ ] Multithreading
+- [X] Multithreading
 - [ ] Real-time camera movement
 
+Check out the documentation and notes I have procured at: https://github.com/MustansarFarooq/raytracingNotes/
 
 ### Multiple spheres (Rendered Before BVH and Textures)
 <img width="810" height="610" alt="Final Render I" src="https://github.com/user-attachments/assets/ad5b84a9-52c6-45ac-9787-99af703b0140" />
