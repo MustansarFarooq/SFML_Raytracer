@@ -1,5 +1,4 @@
 #pragma once
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include <iostream>
 
@@ -18,7 +17,7 @@ public:
     }
 
     ~image() {
-        STBI_FREE(fdata);
+        stbi_image_free(fdata);
     }
 
     bool load(const std::string& filename) {
