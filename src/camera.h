@@ -1,0 +1,262 @@
+#ifndef SFML_RAYTRACER_CAMERA_H
+#define SFML_RAYTRACER_CAMERA_H
+#include <SFML/Graphics/Color.hpp>
+#include <SFML/System/Vector2.hpp>
+#include <atomic>
+#include <chrono>
+#include <mutex>
+#include <ostream>
+#include <thread>
+#include <vector>
+
+#include "SFML/System/Vector3.hpp"
+#include "hittable.h"
+#include "interval.h"
+#include "material.h"
+#include "raytracer.h"
+#include "sphere.h"
+
+struct tile {
+  int x0, y0, x1, y1;
+};
+
+class camera {
+ public:
+  sf::Vector3f background = {0, 0, 0};
+  float moveSpeed = 0.6f;
+  float mouseSensitivity = 0.1f;
+  std::atomic<int> nextTile = 0;
+  std::vector<std::uint8_t> frontBuffer;
+  std::vector<std::uint8_t> backBuffer;
+  std::mutex imageMutex;
+
+  int samplesPerPixel;
+  int maxDepth = 10;
+  float fovDegrees;
+  sf::Vector3f lookFrom = {0, 0, 0};
+  sf::Vector3f lookAt = {0, 0, -1};
+  sf::Vector3f vup = {0, 1, 0};
+
+  std::atomic<int> completedPixels = 0;
+
+  int totalPixels;
+  std::vector<sf::Vector3f> accumulated;
+  float accumulatedFrame = 1;
+
+  double lastFrameTime = 0.0;
+
+  camera(const int& w, const int& h, std::vector<material>& materials) : screenWidth(w), screenHeight(h), materials(materials) {
+    totalPixels = screenWidth * screenHeight;
+    accumulated.resize(totalPixels);
+    frontBuffer.resize(totalPixels * 4);
+    backBuffer.resize(totalPixels * 4);
+
+    for (int y = 0; y < screenHeight; y += TILE_SIZE) {
+      for (int x = 0; x < screenWidth; x += TILE_SIZE) {
+        tiles.push_back({x, y, std::min(x + TILE_SIZE, screenWidth),
+                         std::min(y + TILE_SIZE, screenHeight)});
+      }
+    }
+  }
+
+  void render(const hittable& world) {
+    nextTile = 0;
+    completedPixels = 0;
+    auto worker = [&]() {
+      while (true) {
+        int tileIndex = nextTile.fetch_add(1);
+
+        if (tileIndex >= tiles.size())
+          break;
+
+        const tile& tile = tiles[tileIndex];
+
+        renderTile(tile, world);
+      }
+    };
+
+    auto start = std::chrono::steady_clock::now();
+    initialize();
+    pixelSamplesScale = 1.f / samplesPerPixel;
+    completedPixels = 0;
+
+    unsigned threadCount = std::thread::hardware_concurrency();
+    {
+      std::vector<std::jthread> workers;
+      for (int i = 0; i < threadCount; ++i) {
+        workers.emplace_back(worker);
+      }
+    }
+    accumulatedFrame++;
+
+    {
+      std::lock_guard<std::mutex> lock(imageMutex);
+      frontBuffer.swap(backBuffer);
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    lastFrameTime = std::chrono::duration<double>(end - start).count();
+  }
+
+  void movement(float dt, sf::Vector2i mouseDelta);
+
+  void resetBuffer() {
+    std::fill(accumulated.begin(), accumulated.end(),
+              sf::Vector3f(0.f, 0.f, 0.f));
+    accumulatedFrame = 1;
+  }
+
+ private:
+  std::vector<tile> tiles;
+  const int TILE_SIZE = 32;
+
+  float pixelSamplesScale;
+  std::vector<material>& materials;
+
+  const int screenHeight;
+  const int screenWidth;
+  // pixel steps
+  sf::Vector3f pixelStepX;
+  sf::Vector3f pixelStepY;
+  sf::Vector3f cameraPosition;
+
+  float aspectRatio = static_cast<float>(screenWidth) / screenHeight;
+  sf::Vector3f topLeftCorner;
+
+  sf::Vector3f u, v, w;
+  float yaw, pitch;  // yaw is left and right, pich is up and down; kinda simmiar
+                     // to texture mapping remember
+
+  void setPixel(std::vector<std::uint8_t>& imageBuffer, sf::Color color,
+                int i) {
+    imageBuffer[i] = color.r;
+    imageBuffer[i + 1] = color.g;
+    imageBuffer[i + 2] = color.b;
+    imageBuffer[i + 3] = color.a;
+  }
+
+  ray getRay(int i, int j) {
+    sf::Vector3f offset = sample_square();
+    sf::Vector3f pixelSample =
+        topLeftCorner +
+        pixelStepX * (i + offset.x)
+        // add the 0.5f because we want to get the center of the pixel, not the
+        // top left corner of it
+        + pixelStepY *
+              (j +
+               offset.y);  // subtract because y increases as we go down in sfml
+
+    sf::Vector3f rayOrigin = cameraPosition;
+    sf::Vector3f rayDir = pixelSample - rayOrigin;
+
+    return ray(rayOrigin, rayDir);
+  }
+
+  // just directly yoinked from rtiow
+  //  Originally written in 2016 by Peter Shirley <ptrshrl@gmail.com>
+  sf::Vector3f sample_square() const {
+    // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit
+    // square.
+    return sf::Vector3f(random_double() - 0.5, random_double() - 0.5, 0);
+  }
+
+  void initialize() {
+    cameraPosition = lookFrom;
+    const float viewingPlaneDistance = (lookFrom - lookAt).length();
+    // the distance between the camera and the center of the viewing plane
+    float viewPlaneWidth =
+        2 * viewingPlaneDistance * std::tan(degrees_to_radians(fovDegrees) / 2);
+    float viewPlaneHeight = viewPlaneWidth / aspectRatio;
+    // distance from left to right, up to down, of each view plane as vec3f
+    sf::Vector3f planeRight = {viewPlaneWidth, 0, 0};
+    sf::Vector3f planeUp = {0, viewPlaneHeight, 0};
+
+    w = (lookFrom - lookAt).normalized();
+    u = (vup.cross(w)).normalized();
+    v = w.cross(u);
+    sf::Vector3f viewPlane_u = viewPlaneWidth * u;
+    sf::Vector3f viewPlane_v = viewPlaneHeight * -v;
+
+    pixelStepX = viewPlane_u / static_cast<float>(screenWidth);
+    pixelStepY = viewPlane_v / static_cast<float>(screenHeight);
+
+    // get the position of the top left corner in coordinate space ig
+    topLeftCorner = cameraPosition - (viewingPlaneDistance * w) -
+                    viewPlane_u / 2.f - viewPlane_v / 2.f;
+  }
+
+  sf::Vector3f rayColor(ray r, int depth, const hittable& world) const {
+    sf::Vector3f radiance = sf::Vector3f(0, 0, 0);
+    sf::Vector3f throughput = sf::Vector3f(1, 1, 1);
+
+    for (int i = 0; i < depth; i++) {
+      hit_record rec;
+
+      if (!world.hit(r, interval(0.001, infinity), rec)) {
+        radiance += throughput * background;
+        break;
+      }
+
+      material mat = materials[rec.materialIndex];
+      radiance += throughput * mat.emmitted;
+
+      ray scattered;
+      sf::Vector3f attenuation;
+
+      if (!scatter(mat, r, rec, attenuation, scattered)) {
+        break;
+      }
+
+      throughput = throughput * attenuation;
+      r = scattered;
+    }
+
+    return radiance;
+
+    // hit_record rec;
+    //
+    // if (depth <= 0)
+    //   return {0, 0, 0};
+    //
+    // if (!world.hit(r, interval(0.001, infinity), rec))
+    //   return background;
+    //
+    // ray scattered;
+    // sf::Vector3f attenuation;
+    // sf::Vector3f emmitted = materials[rec.materialIndex].emmitted;  //(rec.u, rec.v, rec.p);
+    //
+    // if (!scatter(materials[rec.materialIndex], r, rec, attenuation, scattered)) {
+    //   return emmitted;
+    // }
+    // return emmitted + (attenuation * rayColor(scattered, depth - 1, world));
+  }
+  void renderTile(const tile& tile, const hittable& world) {
+    for (int y = tile.y0; y < tile.y1; y++) {
+      for (int x = tile.x0; x < tile.x1; x++) {
+        int index = y * screenWidth + x;
+        sf::Vector3f pixelColor{0, 0, 0};
+
+        for (int sample = 0; sample < samplesPerPixel; ++sample) {
+          ray r = getRay(x, y);
+          sf::Vector3f c = rayColor(r, maxDepth, world);
+          pixelColor += sf::Vector3f(c.x, c.y, c.z);
+        }
+        accumulated[index] += pixelColor;
+        pixelColor = accumulated[index] / accumulatedFrame;
+        pixelColor *= static_cast<float>(pixelSamplesScale);
+        pixelColor.x = std::sqrt(pixelColor.x);
+        pixelColor.y = std::sqrt(pixelColor.y);
+        pixelColor.z = std::sqrt(pixelColor.z);
+        sf::Color finalColor(static_cast<uint8_t>(255.999f * pixelColor.x),
+                             static_cast<uint8_t>(255.999f * pixelColor.y),
+                             static_cast<uint8_t>(255.999f * pixelColor.z),
+                             255);
+
+        setPixel(backBuffer, finalColor, index * 4);
+      }
+    }
+    completedPixels += (TILE_SIZE * TILE_SIZE);
+  }
+};
+
+#endif  // SFML_RAYTRACER_CAMERA_H

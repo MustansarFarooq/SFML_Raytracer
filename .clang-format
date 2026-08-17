@@ -1,0 +1,2 @@
+BasedOnStyle: Google  # Or LLVM, Mozilla, Chromium, WebKit (whichever you use)
+ColumnLimit: 0        # 0 disables the column/line width wrap entirely
